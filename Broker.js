@@ -1,37 +1,36 @@
-const aedes = require('aedes')();
-const net = require('net');
-const http = require('http');
-const ws = require('websocket-stream');
-const https = require("node:https");
+import aedesFactory from "aedes";
+import net from "net";
 
-const MQTT_Port = process.env.MQTT_PORT || 1883;
-const WS_PORT = process.env.WS_PORT || 8083;
+const MQTT_PORT = 1883;
 
-const tcpServer = net.createServer(aedes.handle);
-tcpServer.listen(MQTT_Port, () => {
-    console.log(`MQTT TCP BROKER ON PORT ${MQTT_Port}`);
+const aedes = aedesFactory();
+
+const server = net.createServer(aedes.handle);
+
+server.listen(MQTT_PORT, () => {
+    console.log(`MQTT Broker running on TCP port ${MQTT_PORT}`);
 });
 
-const httpServer = http.createServer();
-ws.createServer({server: httpServer},aedes.handle);
-httpServer.listen(WS_PORT, () => {
-    console.log(`MQTT WS BROKER ON PORT ${WS_PORT}`);
+aedes.authenticate = (client, username, password, done) => {
+    console.log(`Allowing client ${client.id} without auth`);
+    done(null, true);
+};
+
+aedes.on("client", (client) => {
+    console.log(`Client connected: ${client?.id}`);
 });
 
-aedes.on('client', (client) => {
-    console.log(`Client connected:`, client ? client.id : 'unknown');
+aedes.on("clientDisconnect", (client) => {
+    console.log(`Client disconnected: ${client?.id}`);
 });
 
-aedes.on('clientDisconnect', (client) => {
-    console.log('Client disconnected', client ? client.id :'unknown');
-});
+aedes.on("publish", (packet, client) => {
+    if (!packet.topic || packet.topic.startsWith("$SYS")) return;
 
-aedes.on('publish', (packet,client) => {
-    if(packet.topic && !packet.topic.startsWith('$SYS')){
-        console.log('publish',
-            'topic = ', packet.topic,
-            'payload = ', packet.payload.toString(),
-            'from =', client ? client.id : 'broker'
-        );
-    }
+    console.log(
+        "Publish:",
+        "topic =", packet.topic,
+        "| from =", client?.id || "broker",
+        "| payload =", packet.payload.toString()
+    );
 });
